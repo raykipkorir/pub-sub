@@ -29,6 +29,8 @@ class Redis(MessageBrokerInterface):
             if message["type"] == "message":
                 if message.get("data"):
                     data = decode_message(message.get("data"))
+
+                    # define your handlers
                     create_notification(data)
 
     def publish(self, channel_name, json_data):

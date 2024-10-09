@@ -3,6 +3,9 @@ from django.conf import settings
 
 from integrations.base import MessageBrokerInterface
 
+default_exchange = settings.RABBITMQ_CONFIG["EXCHANGES"]["DEFAULT_EXCHANGE"]
+default_queue = settings.RABBITMQ_CONFIG["QUEUES"]["DEFAULT_QUEUE"]
+
 
 class RabbitMQ(MessageBrokerInterface):
     """RabbitMQ message broker."""
@@ -28,35 +31,34 @@ class RabbitMQ(MessageBrokerInterface):
         self.connection = pika.BlockingConnection(parameters)
         self.channel = self.connection.channel()
         # setup exchange - (direct, topic, fanout)
-        self.channel.exchange_declare(
-            "pub_sub_poc_direct_exchange", exchange_type="direct"
-        )
+        self.channel.exchange_declare(default_exchange, exchange_type="direct")
         # setup queues
-        self.channel.queue_declare("queue_for_consumer_one")
+        self.channel.queue_declare(default_queue)
         # bind queues to an exchange
         self.channel.queue_bind(
-            "queue_for_consumer_one",
-            exchange="pub_sub_poc_direct_exchange",
+            default_queue,
+            exchange=default_exchange,
             routing_key="notification.new",
         )
 
     def subscribe(self, queue_name):
-        """Subscribe to a channel."""
+        """Subscribe to a queue."""
         if not self.channel:
             raise Exception("Connection is not established.")
         self.channel.basic_consume(
-            queue=queue_name, on_message_callback=self.consume, auto_ack=True
+            queue=queue_name, on_message_callback=self._consume, auto_ack=True
         )
         self.channel.start_consuming()
 
-    def consume(self, ch, method, properties, body):
+    def _consume(self, ch, method, properties, body):
         from integrations.utilities import create_notification, decode_message
 
         data = decode_message(body)
+        # define your handlers
         create_notification(data)
 
     def publish(self, exchange, routing_key, json_data):
-        """Publish to a channel."""
+        """Publish to an exchange."""
         if not self.channel:
             raise Exception("Connection is not established.")
         # self.channel.queue_declare(queue=queue_name)
